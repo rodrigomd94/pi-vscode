@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { TERMINAL_TITLE } from "./constants.ts";
-import { createPiEnvironment, createPiShellArgs, ensurePiBinary } from "./pi.ts";
+import { createPiEnvironment, createPiShellArgs, ensurePiBinary, resolvePiShell } from "./pi.ts";
 
 export async function createNewTerminal(options: {
   extensionUri: vscode.Uri;
@@ -13,19 +13,23 @@ export async function createNewTerminal(options: {
 
   const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const viewColumn = findPiColumn() ?? findUnusedColumn() ?? vscode.ViewColumn.Beside;
-  const shellArgs = createPiShellArgs(options.extensionUri, {
-    extraArgs: options.extraArgs,
-    contextLines: options.contextLines,
-  });
+  const { shellPath, prependArgs } = resolvePiShell(piPath);
+  const shellArgs = [
+    ...prependArgs,
+    ...createPiShellArgs(options.extensionUri, {
+      extraArgs: options.extraArgs,
+      contextLines: options.contextLines,
+    }),
+  ];
 
   const terminal = vscode.window.createTerminal({
     name: TERMINAL_TITLE,
-    shellPath: piPath,
+    shellPath,
     shellArgs: shellArgs.length > 0 ? shellArgs : undefined,
     location: { viewColumn },
     isTransient: true,
     cwd,
-    env: createPiEnvironment(piPath, options.bridgeConfig),
+    env: createPiEnvironment(options.bridgeConfig),
     iconPath: {
       light: vscode.Uri.joinPath(options.extensionUri, "assets", "logo-light.svg"),
       dark: vscode.Uri.joinPath(options.extensionUri, "assets", "logo.svg"),

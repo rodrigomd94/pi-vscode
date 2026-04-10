@@ -71,14 +71,22 @@ export function resolvePiBinary(opts: ResolveOptions = {}): string {
 }
 
 /**
- * Returns the bin directory that contains the resolved pi binary,
- * or undefined if pi resolved to a bare name / custom path.
- * Useful for injecting node into the terminal PATH when VS Code
- * was launched without nvm/fnm/volta initialized.
+ * When pi is a Node.js script (shebang `#!/usr/bin/env node`), VS Code's
+ * terminal PTY may not have `node` in PATH (desktop launch without nvm).
+ * Returns `{ node, script }` so callers can use node as shellPath and the
+ * script as the first shell arg, bypassing the shebang entirely.
+ * Returns undefined if no sibling `node` binary is found (pi may be native).
  */
-export function resolvePiBinDir(piPath: string): string | undefined {
+export function resolveNodeForPi(piPath: string): { node: string; script: string } | undefined {
   if (piPath === "pi" || !piPath.includes("/")) return undefined;
-  return dirname(piPath);
+  const binDir = dirname(piPath);
+  const nodePath = join(binDir, "node");
+  try {
+    accessSync(nodePath, constants.X_OK);
+    return { node: nodePath, script: piPath };
+  } catch {
+    return undefined;
+  }
 }
 
 /** Scan nvm, fnm, and volta directories for pi binaries. */

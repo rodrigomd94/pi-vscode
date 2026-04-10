@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import * as vscode from "vscode";
 import { toErrorMessage } from "./bridge/utils.ts";
-import { createPiEnvironment, createPiRpcArgs, ensurePiBinary } from "./pi.ts";
+import { createPiEnvironment, createPiRpcArgs, ensurePiBinary, resolvePiShell } from "./pi.ts";
 import { createNewTerminal } from "./terminal.ts";
 
 export function createChatHandler(options: {
@@ -57,11 +57,12 @@ async function runPiRpcPrompt(options: {
   bridgeConfig?: { url: string; token: string };
 }): Promise<{ hadOutput: boolean }> {
   const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  const child = spawn(options.piPath, createPiRpcArgs(options.extensionUri), {
+  const { shellPath, prependArgs } = resolvePiShell(options.piPath);
+  const child = spawn(shellPath, [...prependArgs, ...createPiRpcArgs(options.extensionUri)], {
     cwd,
     env: {
       ...process.env,
-      ...createPiEnvironment(options.piPath, options.bridgeConfig),
+      ...createPiEnvironment(options.bridgeConfig),
     },
     stdio: ["pipe", "pipe", "pipe"],
   });

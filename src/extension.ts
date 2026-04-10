@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { createBridge } from "./bridge/server.ts";
 import { createChatHandler } from "./chat.ts";
 import { TERMINAL_TITLE } from "./constants.ts";
-import { createPiEnvironment, createPiShellArgs, findPiBinary } from "./pi.ts";
+import { createPiEnvironment, createPiShellArgs, findPiBinary, resolvePiShell } from "./pi.ts";
 import { createPackagesViewProvider } from "./packages.ts";
 import { buildOpenWithFileContext, createNewTerminal } from "./terminal.ts";
 
@@ -84,12 +84,14 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTerminalProfileProvider("pi-vscode.terminal-profile", {
       provideTerminalProfile() {
         const piPath = findPiBinary();
+        const { shellPath, prependArgs } = resolvePiShell(piPath);
+        const shellArgs = [...prependArgs, ...createPiShellArgs(extensionUri)];
         return new vscode.TerminalProfile({
           name: TERMINAL_TITLE,
-          shellPath: piPath,
-          shellArgs: createPiShellArgs(extensionUri),
+          shellPath,
+          shellArgs: shellArgs.length > 0 ? shellArgs : undefined,
           cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-          env: createPiEnvironment(piPath, bridgeConfig),
+          env: createPiEnvironment(bridgeConfig),
           iconPath: logoIcon,
         });
       },

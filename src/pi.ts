@@ -2,7 +2,7 @@ import { accessSync, constants } from "node:fs";
 import { join } from "node:path";
 import * as vscode from "vscode";
 import { BRIDGE_BOOTSTRAP_LINES, BRIDGE_EXTENSION_PATH } from "./constants.ts";
-import { resolvePiBinary, resolvePiBinDir } from "./_resolve.ts";
+import { resolveNodeForPi, resolvePiBinary } from "./_resolve.ts";
 
 let piExistsCache: boolean | undefined;
 
@@ -46,6 +46,17 @@ export async function ensurePiBinary(): Promise<string | undefined> {
   return undefined;
 }
 
+/**
+ * Returns the shellPath and shellArgs for launching pi in a terminal.
+ * When pi is a Node.js script and `node` lives beside it (nvm/fnm/volta),
+ * uses `node` as the shell to bypass shebang resolution issues in VS Code PTY.
+ */
+export function resolvePiShell(piPath: string): { shellPath: string; prependArgs: string[] } {
+  const resolved = resolveNodeForPi(piPath);
+  if (resolved) return { shellPath: resolved.node, prependArgs: [resolved.script] };
+  return { shellPath: piPath, prependArgs: [] };
+}
+
 export function createPiShellArgs(
   extensionUri: vscode.Uri,
   options: { extraArgs?: string[]; contextLines?: string[] } = {},
@@ -60,25 +71,13 @@ export function createPiRpcArgs(extensionUri: vscode.Uri): string[] {
 }
 
 export function createPiEnvironment(
-  piPath: string,
   bridgeConfig: { url: string; token: string } | undefined,
 ): Record<string, string> | undefined {
-  const env: Record<string, string> = {};
-
-  // When pi lives inside a version manager directory (nvm, fnm, volta), the
-  // terminal PTY may not have `node` in PATH (e.g. VS Code launched from desktop).
-  // Inject the bin directory so the shebang `#!/usr/bin/env node` resolves.
-  const binDir = resolvePiBinDir(piPath);
-  if (binDir && !process.env.PATH?.split(":").includes(binDir)) {
-    env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
-  }
-
-  if (bridgeConfig) {
-    env.PI_VSCODE_BRIDGE_URL = bridgeConfig.url;
-    env.PI_VSCODE_BRIDGE_TOKEN = bridgeConfig.token;
-  }
-
-  return Object.keys(env).length > 0 ? env : undefined;
+  if (!bridgeConfig) return undefined;
+  return {
+    PI_VSCODE_BRIDGE_URL: bridgeConfig.url,
+    PI_VSCODE_BRIDGE_TOKEN: bridgeConfig.token,
+  };
 }
 
 function createPiBaseArgs(extensionUri: vscode.Uri, contextLines?: string[]): string[] {
