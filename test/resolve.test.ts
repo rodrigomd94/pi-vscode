@@ -1,11 +1,18 @@
 import { constants } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolvePiBinary } from "../src/_resolve.ts";
+import { resolvePiBinary, resolvePiBinDir } from "../src/_resolve.ts";
 
 function mockAccess(existing: Set<string>) {
   return (path: string, _mode: number) => {
     if (!existing.has(path)) throw new Error("ENOENT");
+  };
+}
+
+function mockReaddir(dirs: Record<string, string[]>) {
+  return (path: string) => {
+    if (path in dirs) return dirs[path]!;
+    throw new Error("ENOENT");
   };
 }
 
@@ -21,6 +28,7 @@ describe("resolvePiBinary", () => {
       platform: "linux",
       workspaceDirs: [wsDir],
       access: mockAccess(new Set([piPath])),
+      readdir: mockReaddir({}),
       pathEnv: "",
     });
     expect(result).toBe(piPath);
@@ -46,6 +54,7 @@ describe("resolvePiBinary", () => {
       home,
       workspaceDirs: [],
       access: mockAccess(new Set([bunPath])),
+      readdir: mockReaddir({}),
       pathEnv: "",
     });
     expect(result).toBe(bunPath);
@@ -61,6 +70,7 @@ describe("resolvePiBinary", () => {
       home,
       workspaceDirs: [wsDir],
       access: mockAccess(new Set([globalPath, wsPath])),
+      readdir: mockReaddir({}),
       pathEnv: "",
     });
     expect(result).toBe(globalPath);
@@ -75,9 +85,73 @@ describe("resolvePiBinary", () => {
       home: "/home/user",
       workspaceDirs: [wsDir],
       access: mockAccess(new Set([pathPi, wsPi])),
+      readdir: mockReaddir({}),
       pathEnv: "/usr/bin:/home/user/.nvm/versions/node/v22/bin",
     });
     expect(result).toBe(pathPi);
+  });
+
+  it("finds pi in nvm versions when PATH lacks nvm", () => {
+    const home = "/home/user";
+    const nvmPi = `${home}/.nvm/versions/node/v22.15.0/bin/pi`;
+    const result = resolvePiBinary({
+      platform: "linux",
+      home,
+      workspaceDirs: [],
+      access: mockAccess(new Set([nvmPi])),
+      readdir: mockReaddir({
+        [`${home}/.nvm/versions/node`]: ["v18.20.0", "v22.15.0", "v20.11.0"],
+      }),
+      pathEnv: "/usr/bin",
+    });
+    expect(result).toBe(nvmPi);
+  });
+
+  it("prefers newest nvm version", () => {
+    const home = "/home/user";
+    const v22Pi = `${home}/.nvm/versions/node/v22.15.0/bin/pi`;
+    const v18Pi = `${home}/.nvm/versions/node/v18.20.0/bin/pi`;
+    const result = resolvePiBinary({
+      platform: "linux",
+      home,
+      workspaceDirs: [],
+      access: mockAccess(new Set([v22Pi, v18Pi])),
+      readdir: mockReaddir({
+        [`${home}/.nvm/versions/node`]: ["v18.20.0", "v22.15.0"],
+      }),
+      pathEnv: "",
+    });
+    expect(result).toBe(v22Pi);
+  });
+
+  it("finds pi via fnm", () => {
+    const home = "/home/user";
+    const fnmPi = `${home}/.local/share/fnm/node-versions/v22.0.0/installation/bin/pi`;
+    const result = resolvePiBinary({
+      platform: "linux",
+      home,
+      workspaceDirs: [],
+      access: mockAccess(new Set([fnmPi])),
+      readdir: mockReaddir({
+        [`${home}/.local/share/fnm/node-versions`]: ["v22.0.0"],
+      }),
+      pathEnv: "",
+    });
+    expect(result).toBe(fnmPi);
+  });
+
+  it("finds pi via volta", () => {
+    const home = "/home/user";
+    const voltaPi = `${home}/.volta/bin/pi`;
+    const result = resolvePiBinary({
+      platform: "linux",
+      home,
+      workspaceDirs: [],
+      access: mockAccess(new Set([voltaPi])),
+      readdir: mockReaddir({}),
+      pathEnv: "",
+    });
+    expect(result).toBe(voltaPi);
   });
 
   it("skips global unix paths on windows", () => {
@@ -98,6 +172,7 @@ describe("resolvePiBinary", () => {
       home: "/home/user",
       workspaceDirs: [],
       access: mockAccess(new Set(["/usr/local/bin/pi"])),
+      readdir: mockReaddir({}),
       pathEnv: "/usr/bin:/usr/local/bin",
     });
     expect(result).toBe("/usr/local/bin/pi");
@@ -137,6 +212,7 @@ describe("resolvePiBinary", () => {
       workspaceDirs: [],
       pathEnv: "/usr/bin",
       access,
+      readdir: mockReaddir({}),
     });
     expect(modes.every((m) => m === constants.X_OK)).toBe(true);
   });
@@ -147,8 +223,21 @@ describe("resolvePiBinary", () => {
       home: "/home/user",
       workspaceDirs: [],
       access: mockAccess(new Set()),
+      readdir: mockReaddir({}),
       pathEnv: "/usr/bin:/usr/local/bin",
     });
     expect(result).toBe("pi");
+  });
+});
+
+describe("resolvePiBinDir", () => {
+  it("returns directory for absolute path", () => {
+    expect(resolvePiBinDir("/home/user/.nvm/versions/node/v22/bin/pi")).toBe(
+      "/home/user/.nvm/versions/node/v22/bin",
+    );
+  });
+
+  it("returns undefined for bare name", () => {
+    expect(resolvePiBinDir("pi")).toBeUndefined();
   });
 });

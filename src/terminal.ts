@@ -25,7 +25,7 @@ export async function createNewTerminal(options: {
     location: { viewColumn },
     isTransient: true,
     cwd,
-    env: createPiEnvironment(options.bridgeConfig),
+    env: createPiEnvironment(piPath, options.bridgeConfig),
     iconPath: {
       light: vscode.Uri.joinPath(options.extensionUri, "assets", "logo-light.svg"),
       dark: vscode.Uri.joinPath(options.extensionUri, "assets", "logo.svg"),

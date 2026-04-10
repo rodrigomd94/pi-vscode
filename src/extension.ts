@@ -83,12 +83,13 @@ export async function activate(context: vscode.ExtensionContext) {
     ),
     vscode.window.registerTerminalProfileProvider("pi-vscode.terminal-profile", {
       provideTerminalProfile() {
+        const piPath = findPiBinary();
         return new vscode.TerminalProfile({
           name: TERMINAL_TITLE,
-          shellPath: findPiBinary(),
+          shellPath: piPath,
           shellArgs: createPiShellArgs(extensionUri),
           cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-          env: createPiEnvironment(bridgeConfig),
+          env: createPiEnvironment(piPath, bridgeConfig),
           iconPath: logoIcon,
         });
       },
