@@ -1,5 +1,5 @@
 import { accessSync, constants } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as vscode from "vscode";
 import { BRIDGE_BOOTSTRAP_LINES, BRIDGE_EXTENSION_PATH } from "./constants.ts";
 import { resolveNodeForPi, resolvePiBinary } from "./_resolve.ts";
@@ -71,13 +71,29 @@ export function createPiRpcArgs(extensionUri: vscode.Uri): string[] {
 }
 
 export function createPiEnvironment(
+  piPath: string,
   bridgeConfig: { url: string; token: string } | undefined,
 ): Record<string, string> | undefined {
-  if (!bridgeConfig) return undefined;
-  return {
-    PI_VSCODE_BRIDGE_URL: bridgeConfig.url,
-    PI_VSCODE_BRIDGE_TOKEN: bridgeConfig.token,
-  };
+  const env: Record<string, string> = {};
+
+  // When pi lives inside a version manager directory (nvm, fnm, volta), VS Code
+  // launched from a desktop entry won't have that bin dir in PATH. Pi needs more
+  // than just `node` — it shells out to `npm`, `git`, etc. at startup. Inject
+  // the bin directory so all sibling tools are available.
+  const resolved = resolveNodeForPi(piPath);
+  if (resolved) {
+    const binDir = dirname(resolved.node);
+    if (!process.env.PATH?.split(":").includes(binDir)) {
+      env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
+    }
+  }
+
+  if (bridgeConfig) {
+    env.PI_VSCODE_BRIDGE_URL = bridgeConfig.url;
+    env.PI_VSCODE_BRIDGE_TOKEN = bridgeConfig.token;
+  }
+
+  return Object.keys(env).length > 0 ? env : undefined;
 }
 
 function createPiBaseArgs(extensionUri: vscode.Uri, contextLines?: string[]): string[] {

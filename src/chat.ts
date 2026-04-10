@@ -62,7 +62,7 @@ async function runPiRpcPrompt(options: {
     cwd,
     env: {
       ...process.env,
-      ...createPiEnvironment(options.bridgeConfig),
+      ...createPiEnvironment(options.piPath, options.bridgeConfig),
     },
     stdio: ["pipe", "pipe", "pipe"],
   });

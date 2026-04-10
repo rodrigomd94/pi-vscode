@@ -91,7 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
           shellPath,
           shellArgs: shellArgs.length > 0 ? shellArgs : undefined,
           cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-          env: createPiEnvironment(bridgeConfig),
+          env: createPiEnvironment(piPath, bridgeConfig),
           iconPath: logoIcon,
         });
       },
