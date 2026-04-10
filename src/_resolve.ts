@@ -31,17 +31,18 @@ export function resolvePiBinary(opts: ResolveOptions = {}): string {
   // Windows lacks Unix-style execute permission; just check the file exists
   const accessFlag = isWin ? constants.F_OK : constants.X_OK;
 
-  // Check workspace-local node_modules/.bin first (respects monorepos / multi-root)
-  const workspaceCandidates = workspaceDirs.flatMap((dir) =>
-    names.map((n) => join(dir, "node_modules", ".bin", n)),
-  );
-
-  // Then well-known global paths
+  // Well-known global paths first — pi is a developer tool typically installed globally,
+  // and workspace-local node_modules installs are rarely the intended terminal shell binary.
   const globalCandidates = isWin
     ? []
     : [`${home}/.bun/bin/pi`, `${home}/.local/bin/pi`, `${home}/.npm-global/bin/pi`];
 
-  const candidates = [...workspaceCandidates, ...globalCandidates];
+  // Workspace-local node_modules/.bin as fallback (monorepos / multi-root)
+  const workspaceCandidates = workspaceDirs.flatMap((dir) =>
+    names.map((n) => join(dir, "node_modules", ".bin", n)),
+  );
+
+  const candidates = [...globalCandidates, ...workspaceCandidates];
   for (const c of candidates) {
     try {
       access(c, accessFlag);
