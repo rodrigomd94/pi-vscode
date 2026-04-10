@@ -76,16 +76,14 @@ export function createPiEnvironment(
 ): Record<string, string> | undefined {
   const env: Record<string, string> = {};
 
-  // When pi lives inside a version manager directory (nvm, fnm, volta), VS Code
-  // launched from a desktop entry won't have that bin dir in PATH. Pi needs more
-  // than just `node` — it shells out to `npm`, `git`, etc. at startup. Inject
-  // the bin directory so all sibling tools are available.
+  // Always inject the pi binary's bin directory into PATH. Pi shells out to
+  // `npm`, `git`, etc. at startup. When `terminal.integrated.inheritEnv` is
+  // false (or VS Code was launched from a desktop entry without nvm), the
+  // terminal won't have these tools in PATH even if the extension host does.
   const resolved = resolveNodeForPi(piPath);
   if (resolved) {
     const binDir = dirname(resolved.node);
-    if (!process.env.PATH?.split(":").includes(binDir)) {
-      env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
-    }
+    env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
   }
 
   if (bridgeConfig) {
