@@ -31,36 +31,29 @@ export function resolvePiBinary(opts: ResolveOptions = {}): string {
   // Windows lacks Unix-style execute permission; just check the file exists
   const accessFlag = isWin ? constants.F_OK : constants.X_OK;
 
-  // Well-known global paths first — pi is a developer tool typically installed globally,
-  // and workspace-local node_modules installs are rarely the intended terminal shell binary.
+  // Well-known global paths and OS PATH first — pi is a developer tool typically
+  // installed globally, and workspace node_modules installs are rarely the intended
+  // terminal shell binary (often stray or transitive installs that fail with exit 127).
   const globalCandidates = isWin
     ? []
     : [`${home}/.bun/bin/pi`, `${home}/.local/bin/pi`, `${home}/.npm-global/bin/pi`];
 
-  // Workspace-local node_modules/.bin as fallback (monorepos / multi-root)
+  const pathCandidates = pathEnv
+    .split(isWin ? ";" : ":")
+    .filter(Boolean)
+    .flatMap((dir) => names.map((n) => join(dir, n)));
+
+  // Workspace-local node_modules/.bin as last resort
   const workspaceCandidates = workspaceDirs.flatMap((dir) =>
     names.map((n) => join(dir, "node_modules", ".bin", n)),
   );
 
-  const candidates = [...globalCandidates, ...workspaceCandidates];
+  const candidates = [...globalCandidates, ...pathCandidates, ...workspaceCandidates];
   for (const c of candidates) {
     try {
       access(c, accessFlag);
       return c;
     } catch {}
-  }
-
-  // Search OS PATH
-  const pathDirs = pathEnv.split(isWin ? ";" : ":");
-  for (const dir of pathDirs) {
-    if (!dir) continue;
-    for (const n of names) {
-      const full = join(dir, n);
-      try {
-        access(full, accessFlag);
-        return full;
-      } catch {}
-    }
   }
 
   return "pi";

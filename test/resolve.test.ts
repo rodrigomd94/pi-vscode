@@ -66,6 +66,20 @@ describe("resolvePiBinary", () => {
     expect(result).toBe(globalPath);
   });
 
+  it("prefers PATH over workspace node_modules", () => {
+    const wsDir = "/projects/myapp";
+    const pathPi = "/home/user/.nvm/versions/node/v22/bin/pi";
+    const wsPi = join(wsDir, "node_modules", ".bin", "pi");
+    const result = resolvePiBinary({
+      platform: "linux",
+      home: "/home/user",
+      workspaceDirs: [wsDir],
+      access: mockAccess(new Set([pathPi, wsPi])),
+      pathEnv: "/usr/bin:/home/user/.nvm/versions/node/v22/bin",
+    });
+    expect(result).toBe(pathPi);
+  });
+
   it("skips global unix paths on windows", () => {
     const home = "C:\\Users\\dev";
     const result = resolvePiBinary({
