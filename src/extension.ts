@@ -1,3 +1,6 @@
+import { unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import * as vscode from "vscode";
 import { createBridge } from "./bridge/server.ts";
 import { createChatHandler } from "./chat.ts";
@@ -5,6 +8,8 @@ import { TERMINAL_TITLE } from "./constants.ts";
 import { createPiEnvironment, createPiShellArgs, findPiBinary, resolvePiShell } from "./pi.ts";
 import { createPackagesViewProvider } from "./packages.ts";
 import { buildOpenWithFileContext, createNewTerminal } from "./terminal.ts";
+
+const CONNECTION_FILE = join(homedir(), ".pi-vscode-bridge.json");
 
 let extensionUri: vscode.Uri;
 let bridgeConfig: { url: string; token: string } | undefined;
@@ -16,11 +21,24 @@ export async function activate(context: vscode.ExtensionContext) {
   const bridge = await createBridge(context);
   bridgeConfig = { url: bridge.url, token: bridge.token };
   bridgeDispose = () => bridge.dispose();
+
+  void writeFile(
+    CONNECTION_FILE,
+    JSON.stringify({
+      url: bridge.url,
+      token: bridge.token,
+      pid: process.pid,
+      workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null,
+    }),
+    "utf8",
+  ).catch(() => {});
+
   context.subscriptions.push({
     dispose: () => {
       const dispose = bridgeDispose;
       bridgeDispose = undefined;
       bridgeConfig = undefined;
+      void unlink(CONNECTION_FILE).catch(() => {});
       void dispose?.();
     },
   });
@@ -107,4 +125,5 @@ export async function deactivate() {
   bridgeDispose = undefined;
   bridgeConfig = undefined;
   await dispose?.();
+  void unlink(CONNECTION_FILE).catch(() => {});
 }

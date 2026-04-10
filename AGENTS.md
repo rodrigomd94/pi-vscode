@@ -22,6 +22,7 @@
 - `src/bridge/types.ts` — Bridge type definitions (selection, editor info, notifications, RPC, state)
 - `src/bridge/utils.ts` — Path resolution, request parsing, range helpers
 - `bridge/pi-vscode-bridge.js` — Bundled pi extension registering VS Code bridge tools for pi
+- `bridge/pi-vscode-global.js` — Self-contained global pi extension for external terminals; discovers VS Code bridge via `~/.pi-vscode-bridge.json`, registers the same bridge tools, and shows a TUI widget with active file/selection
 - `dist/extension.cjs` — CJS wrapper for VS Code (loads ESM bundle via dynamic import)
 
 ## Build
@@ -65,6 +66,8 @@ See [.agents/docs/icons.md](.agents/docs/icons.md)
 - Pi binary auto-detected from common paths (`~/.bun/bin/pi`, `~/.local/bin/pi`, etc.) or configurable via `pi-vscode.path` setting
 - Terminal shell is the pi binary itself (not a shell running pi)
 - Every pi launch injects `PI_VSCODE_BRIDGE_URL` and `PI_VSCODE_BRIDGE_TOKEN` plus `--extension bridge/pi-vscode-bridge.js`
+- The extension writes `~/.pi-vscode-bridge.json` on activation (with url, token, pid, workspaceFolder) and deletes it on deactivation, enabling external pi instances to discover the bridge
+- The global extension (`bridge/pi-vscode-global.js`) can be installed to `~/.pi/agent/extensions/pi-vscode-bridge/index.js` for external terminal use; it skips when env vars are present to avoid double-registration
 - Bridge tool coverage currently includes: current selection, latest cached selection, diagnostics, open editors, workspace folders, aggregate editor state, opening files in VS Code, dirty/save state, document symbols, definitions, type definitions, implementations, declarations, hover info, workspace symbol search, references, code actions, executing code actions, applying workspace edits, document/range formatting through VS Code providers, buffered IDE notifications, and showing VS Code info/warning/error notifications
 - Formatting bridge methods (`formatDocument`, `formatRange`) call `vscode.executeFormatDocumentProvider` / `vscode.executeFormatRangeProvider`, convert the returned `TextEdit[]` into a `WorkspaceEdit`, and apply it with `workspace.applyEdit`
 - README bridge docs now group tools into inspection vs action categories, include formatting tools and `vscode_show_notification`, and document important parameter/behavior notes (`selection` vs `start`/`end`, notification polling, cached code action ids)

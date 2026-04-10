@@ -100,6 +100,23 @@ Each pi terminal launched by the extension loads a bundled pi extension that can
 
 These bridge tools let pi inspect selections, diagnostics, symbols, definitions, declarations, implementations, hover/type info, workspace-wide symbol search, references, quick-fix availability, dirty state, and recent IDE events, while also safely opening files, saving buffers, applying workspace edits, formatting open buffers through VS Code providers, running VS Code code actions, and surfacing notifications back to the user.
 
+## Using Pi from External Terminals
+
+By default, bridge tools only work when pi is launched from a VS Code terminal. To enable bridge tools from any terminal (Ghostty, kitty, etc.) while VS Code is open:
+
+```bash
+mkdir -p ~/.pi/agent/extensions/pi-vscode-bridge
+cp ~/.vscode/extensions/pi0.pi-vscode-*/bridge/pi-vscode-global.js ~/.pi/agent/extensions/pi-vscode-bridge/index.js
+```
+
+This installs the global bridge extension. When pi starts in any terminal, it will:
+
+1. Check if VS Code's bridge is running via `~/.pi-vscode-bridge.json`
+2. Register all VS Code bridge tools if a valid bridge is found
+3. Show a TUI widget with the active VS Code file and selection
+
+To disable, remove the directory: `rm -rf ~/.pi/agent/extensions/pi-vscode-bridge`
+
 ## Configuration
 
 | Setting          | Default | Description                                             |
