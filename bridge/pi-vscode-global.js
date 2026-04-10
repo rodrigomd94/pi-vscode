@@ -659,6 +659,37 @@ export default function (pi) {
     }
   }
 
+  pi.on("before_agent_start", async (_event, ctx) => {
+    try {
+      const state = await callBridge("getEditorState");
+      const lines = [
+        "You have a live VS Code IDE bridge connection.",
+        "Prefer VS Code bridge tools over manual file reads or guesses: use them to get editor state, selection, diagnostics, symbols, definitions, hovers, references, code actions, workspace symbols, and open editors.",
+        "After edits, check `vscode_get_diagnostics` for real-time type/lint errors from the IDE instead of running separate commands.",
+      ];
+      if (workspaceFolder) lines.push(`The workspace root is: ${workspaceFolder}`);
+      if (state?.activeEditor) {
+        lines.push(
+          `The user is currently viewing this file in their editor: ${state.activeEditor.filePath}`,
+        );
+        if (state.currentSelection) {
+          const start = state.currentSelection.start.line + 1;
+          const end = state.currentSelection.end.line + 1;
+          if (start === end) {
+            lines.push(
+              `The cursor is at line ${start}, character ${state.currentSelection.start.character + 1}.`,
+            );
+          } else {
+            lines.push(
+              `The current selection spans lines ${start}-${end}. Use the VS Code bridge to inspect the exact selected text if needed.`,
+            );
+          }
+        }
+      }
+      ctx.message = lines.join("\n\n");
+    } catch {}
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     const conn = readConnectionFile();
     if (!conn) {
