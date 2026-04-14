@@ -628,11 +628,81 @@ export default function (pi) {
 
   // ---- Widget + polling ----
 
+  function truncateMiddle(text, maxWidth) {
+    if (maxWidth <= 0 || text.length <= maxWidth) return text;
+    if (maxWidth === 1) return "…";
+    if (maxWidth === 2) return `${text.slice(0, 1)}…`;
+
+    const leftWidth = Math.ceil((maxWidth - 1) / 2);
+    const rightWidth = Math.floor((maxWidth - 1) / 2);
+    return `${text.slice(0, leftWidth)}…${text.slice(text.length - rightWidth)}`;
+  }
+
+  function splitPath(filePath) {
+    const normalized = filePath.replaceAll("\\", "/");
+    const lastSlash = normalized.lastIndexOf("/");
+    if (lastSlash === -1) return { dir: "", file: normalized };
+    return {
+      dir: normalized.slice(0, lastSlash + 1),
+      file: normalized.slice(lastSlash + 1),
+    };
+  }
+
+  function renderPath(theme, filePath, maxWidth) {
+    if (maxWidth <= 0) return "";
+
+    const { dir, file } = splitPath(filePath);
+    if (!dir) return theme.fg("accent", theme.bold(truncateMiddle(file, maxWidth)));
+
+    const minFileWidth = Math.min(file.length, Math.max(1, Math.floor(maxWidth * 0.6)));
+    const fileWidth = Math.min(
+      file.length,
+      Math.max(minFileWidth, maxWidth - Math.min(dir.length, 12)),
+    );
+    const dirWidth = Math.max(0, maxWidth - fileWidth);
+    const shownDir = truncateMiddle(dir, dirWidth);
+    const shownFile = fileWidth < file.length ? truncateMiddle(file, fileWidth) : file;
+
+    return theme.fg("muted", shownDir) + theme.fg("accent", theme.bold(shownFile));
+  }
+
+  function setWidgetState(ctx, widgetState) {
+    ctx.ui.setWidget("pi-vscode", (_tui, theme) => ({
+      invalidate() {},
+      render(width) {
+        const prefix = `${theme.fg("accent", theme.bold("VS Code"))}${theme.fg("dim", ": ")}`;
+
+        if (widgetState.kind === "disconnected") {
+          return [prefix + theme.fg("error", theme.bold("disconnected"))];
+        }
+
+        if (widgetState.kind === "no-file") {
+          return [prefix + theme.fg("warning", "no file open")];
+        }
+
+        const dirtyIndicator = widgetState.isDirty ? theme.fg("warning", " ●") : "";
+        const lineColor = widgetState.hasSelection ? "warning" : "dim";
+        const lineInfo = widgetState.lineInfo ? theme.fg(lineColor, widgetState.lineInfo) : "";
+        const availableWidth = Math.max(
+          0,
+          width - "VS Code: ".length - widgetState.lineInfo.length - (widgetState.isDirty ? 2 : 0),
+        );
+
+        return [
+          prefix +
+            renderPath(theme, widgetState.filePath, availableWidth) +
+            lineInfo +
+            dirtyIndicator,
+        ];
+      },
+    }));
+  }
+
   async function updateWidget(ctx) {
     try {
       const state = await callBridge("getEditorState");
       if (!state?.activeEditor) {
-        ctx.ui.setWidget("pi-vscode", ["VS Code: no file open"]);
+        setWidgetState(ctx, { kind: "no-file" });
         return;
       }
 
@@ -643,15 +713,25 @@ export default function (pi) {
       }
 
       let lineInfo = "";
+      let hasSelection = false;
       if (state.currentSelection) {
         const startLine = state.currentSelection.start.line + 1;
         const endLine = state.currentSelection.end.line + 1;
+        hasSelection =
+          state.currentSelection.start.line !== state.currentSelection.end.line ||
+          state.currentSelection.start.character !== state.currentSelection.end.character;
         lineInfo = startLine === endLine ? ` L${startLine}` : ` L${startLine}-${endLine}`;
       }
 
-      ctx.ui.setWidget("pi-vscode", [`VS Code: ${filePath}${lineInfo}`]);
+      setWidgetState(ctx, {
+        kind: "connected",
+        filePath,
+        lineInfo,
+        hasSelection,
+        isDirty: Boolean(state.activeEditor.isDirty),
+      });
     } catch {
-      ctx.ui.setWidget("pi-vscode", ["VS Code: disconnected"]);
+      setWidgetState(ctx, { kind: "disconnected" });
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
@@ -693,7 +773,7 @@ export default function (pi) {
   pi.on("session_start", async (_event, ctx) => {
     const conn = readConnectionFile();
     if (!conn) {
-      ctx.ui.setWidget("pi-vscode", ["VS Code: disconnected"]);
+      setWidgetState(ctx, { kind: "disconnected" });
       return;
     }
     bridgeUrl = conn.url;
